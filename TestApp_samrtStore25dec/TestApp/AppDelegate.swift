@@ -50,7 +50,6 @@ class AppDelegate : UIResponder, UIApplicationDelegate
         SalesforceSDKManager.shared().postLaunchAction = {
             [unowned self] (launchActionList: SFSDKLaunchAction) in
             let launchActionString = SalesforceSDKManager.launchActionsStringRepresentation(launchActionList)
-            self.log(.info, msg:"Post-launch: launch actions taken: \(launchActionString)");
             self.setupRootViewController();
         }
 //        SalesforceSDKManager.shared().launchErrorAction = {
@@ -167,7 +166,6 @@ class AppDelegate : UIResponder, UIApplicationDelegate
     
     func handleSdkManagerLogout()
     {
-        self.log(.debug, msg: "SFAuthenticationManager logged out.  Resetting app.")
         self.resetViewState { () -> () in
             self.initializeAppViewState()
             
@@ -193,7 +191,7 @@ class AppDelegate : UIResponder, UIApplicationDelegate
                     action in
                     self.window!.rootViewController!.dismiss(animated: true, completion: nil)
                 })
-                self.window!.rootViewController!.present(userSwitchVc!, animated: true, completion: nil)
+                self.window!.rootViewController!.present(userSwitchVc, animated: true, completion: nil)
             } else {
                 if (numberOfAccounts == 1) {
                     SFUserAccountManager.sharedInstance().currentUser = allAccounts![0]
@@ -207,7 +205,6 @@ class AppDelegate : UIResponder, UIApplicationDelegate
     {
         let fromUserName = (fromUser != nil) ? fromUser?.userName : "<none>"
         let toUserName = (toUser != nil) ? toUser?.userName : "<none>"
-        self.log(.debug, msg:"SFUserAccountManager changed from user \(fromUserName) to \(toUserName).  Resetting app.")
         self.resetViewState { () -> () in
             self.initializeAppViewState()
             SalesforceSDKManager.shared().launch()

@@ -30,7 +30,7 @@ class ContactListVC: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        syncMgr = SFSmartSyncSyncManager.sharedInstance(forUser: SFUserAccountManager.sharedInstance().currentUser, storeName: "abcd")
+        syncMgr = SFSmartSyncSyncManager.sharedInstance(forUser: SFUserAccountManager.sharedInstance().currentUser!, storeName: "abcd")
         //declare this inside of viewWillAppear
         
         NotificationCenter.default.addObserver(self, selector: #selector(self.reachabilityChanged),name: ReachabilityChangedNotification,object: reachability)
@@ -389,13 +389,13 @@ class ContactListVC: UIViewController {
         
 
         let compositeRequest = SFRestAPI.sharedInstance().batchRequest([restRequest1,restRequest2,restRequest3], haltOnError: true)
-        
+       /*
         SFRestAPI.sharedInstance().send(compositeRequest, fail: { (error) in
             print(error?.localizedDescription as Any)
         }) { (response) in
             print(response as Any)
         }
-        
+        */
     }
     
     func convertDictionaryIntoJSONDictionary(dictionary: [String:Any]) -> [String:Any] {
