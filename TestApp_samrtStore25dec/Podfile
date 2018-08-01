@@ -1,0 +1,23 @@
+
+# Uncomment this line to define a global platform for your project
+# platform :ios, ’10.0’
+
+def pod_import
+    source 'https://github.com/forcedotcom/SalesforceMobileSDK-iOS-Specs.git' # need to be first
+    source 'https://github.com/CocoaPods/Specs.git'
+    
+    use_frameworks!
+
+    pod 'SalesforceAnalytics','=5.3.1’
+    pod 'SmartStore','=5.3.1’
+    pod 'SmartSync','=5.3.1’
+    pod 'SalesforceSDKCore','=5.3.1’
+    pod 'FMDB', :git => 'https://github.com/forcedotcom/fmdb', :branch => '2.7.2_xcode9'
+
+end
+
+
+target 'TestApp' do
+    pod_import
+end
+
