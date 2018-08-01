@@ -27,6 +27,7 @@
 #import "SFSmartSyncNetworkUtils.h"
 #import "SFSmartSyncSyncManager.h"
 #import "SFSmartSyncObjectUtils.h"
+#import "SFSyncTarget+Internal.h"
 #import <SalesforceSDKCore/SFJsonUtils.h>
 #import <SmartStore/SFSmartStore.h>
 
@@ -53,6 +54,7 @@ typedef void (^SFSyncUpRecordModDateBlock)(SFRecordModDate *remoteModDate);
 @interface  SFSyncUpTarget ()
 @property (nonatomic, strong) NSArray*  createFieldlist;
 @property (nonatomic, strong) NSArray*  updateFieldlist;
+@property (nonatomic, strong) NSString* lastError;
 @end
 
 @implementation SFSyncUpTarget
@@ -223,7 +225,12 @@ typedef void (^SFSyncUpRecordModDateBlock)(SFRecordModDate *remoteModDate);
              failBlock:(SFSyncUpTargetErrorBlock)failBlock
 {
     SFRestRequest* request = [[SFRestAPI sharedInstance] requestForCreateWithObjectType:objectType fields:fields];
-    [SFSmartSyncNetworkUtils sendRequestWithSmartSyncUserAgent:request failBlock:failBlock completeBlock:completionBlock];
+    [SFSmartSyncNetworkUtils sendRequestWithSmartSyncUserAgent:request failBlock:^(NSError *e, NSURLResponse *rawResponse) {
+        self.lastError = e.description;
+        failBlock(e);
+    } completeBlock:^(NSDictionary* d, NSURLResponse *rawResponse) {
+        completionBlock(d);
+    }];
 }
 
 - (void)updateOnServer:(NSString*)objectType
@@ -233,7 +240,12 @@ typedef void (^SFSyncUpRecordModDateBlock)(SFRecordModDate *remoteModDate);
              failBlock:(SFSyncUpTargetErrorBlock)failBlock
 {
     SFRestRequest* request = [[SFRestAPI sharedInstance] requestForUpdateWithObjectType:objectType objectId:objectId fields:fields];
-    [SFSmartSyncNetworkUtils sendRequestWithSmartSyncUserAgent:request failBlock:failBlock completeBlock:completionBlock];
+    [SFSmartSyncNetworkUtils sendRequestWithSmartSyncUserAgent:request failBlock:^(NSError *e, NSURLResponse *rawResponse) {
+        self.lastError = e.description;
+        failBlock(e);
+    } completeBlock:^(NSDictionary* d, NSURLResponse *rawResponse) {
+        completionBlock(d);
+    }];
 }
 
 - (void)deleteOnServer:(NSString*)objectType
@@ -242,7 +254,12 @@ typedef void (^SFSyncUpRecordModDateBlock)(SFRecordModDate *remoteModDate);
              failBlock:(SFSyncUpTargetErrorBlock)failBlock
 {
     SFRestRequest* request = [[SFRestAPI sharedInstance] requestForDeleteWithObjectType:objectType objectId:objectId];
-    [SFSmartSyncNetworkUtils sendRequestWithSmartSyncUserAgent:request failBlock:failBlock completeBlock:completionBlock];
+    [SFSmartSyncNetworkUtils sendRequestWithSmartSyncUserAgent:request failBlock:^(NSError *e, NSURLResponse *rawResponse) {
+        self.lastError = e.description;
+        failBlock(e);
+    } completeBlock:^(NSDictionary* d, NSURLResponse *rawResponse) {
+        completionBlock(d);
+    }];
 }
 
 - (void)fetchLastModifiedDate:(NSDictionary *)record
@@ -257,10 +274,10 @@ typedef void (^SFSyncUpRecordModDateBlock)(SFRecordModDate *remoteModDate);
 
     [SFSmartSyncNetworkUtils
             sendRequestWithSmartSyncUserAgent:request
-                                    failBlock:^(NSError *e) {
+                                    failBlock:^(NSError *e, NSURLResponse *rawResponse) {
                                         completeBlock([[SFRecordModDate alloc] initWithTimestamp:nil isDeleted:e.code == 404]);
                                     }
-                                completeBlock:^(id response) {
+                                completeBlock:^(id response, NSURLResponse *rawResponse) {
                                     completeBlock([[SFRecordModDate alloc] initWithTimestamp:response[self.modificationDateFieldName] isDeleted:FALSE]);
                                 }
     ];
@@ -276,12 +293,35 @@ if ((localModDate.timestamp != nil && remoteModDate.timestamp != nil
         && [localModDate.timestamp compare:remoteModDate.timestamp] >= 0) // we got a local and remote mod date and the local one is greater
         || (localModDate.isDeleted && remoteModDate.isDeleted)            // or we have a local delete and a remote delete
         || localModDate.timestamp == nil)                                 // or we don't have a local mod date
-{
-    return true;
-}
-return false;
+    {
+        return true;
+    }
+    return false;
 }
 
+- (void) saveRecordToLocalStoreWithLastError:(SFSmartSyncSyncManager*)syncManager
+                                    soupName:(NSString*) soupName
+                                      record:(NSDictionary*) record {
+    [self saveRecordToLocalStoreWithLastError:syncManager
+                                     soupName:soupName
+                                       record:record
+                                    lastError:self.lastError];
+    self.lastError = nil;
+}
 
+- (void) saveRecordToLocalStoreWithLastError:(SFSmartSyncSyncManager*)syncManager
+                                    soupName:(NSString*) soupName
+                                      record:(NSDictionary*) record
+                                   lastError:(NSString*) lastError {
+    if (lastError) {
+        [self saveInLocalStore:syncManager
+                      soupName:soupName
+                       records:@[record]
+                   idFieldName:self.idFieldName
+                        syncId:nil
+                     lastError:lastError
+                    cleanFirst:NO];
+    }
+}
 
 @end

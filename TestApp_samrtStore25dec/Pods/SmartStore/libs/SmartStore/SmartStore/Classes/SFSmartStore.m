@@ -74,6 +74,8 @@ static NSString * const kSFSmartStoreExternalIdNilDescription   = @"For upsert w
 static NSString * const kSFSmartStoreExtIdLookupError           = @"There was an error retrieving the soup entry ID for path '%@' and value '%@': %@";
 static NSInteger  const kSFSmartStoreOtherErrorCode             = 999;
 
+NSString *const kSFSmartStoreErrorLoadExternalSoup =  @"com.salesforce.smartstore.LoadExternalSoupError";
+
 // Encryption constants
 NSString * const kSFSmartStoreEncryptionKeyLabel = @"com.salesforce.smartstore.encryption.keyLabel";
 
@@ -320,6 +322,10 @@ NSString *const EXPLAIN_ROWS = @"rows";
         }
         SFSmartStore *store = _allSharedStores[userKey][storeName];
         if (nil == store) {
+            if (user.loginState != SFUserAccountLoginStateLoggedIn) {
+                [SFSDKSmartStoreLogger w:[self class] format:@"%@ A user account must be in the  SFUserAccountLoginStateLoggedIn state in order to create a store.", NSStringFromSelector(_cmd), storeName, NSStringFromClass(self)];
+                return nil;
+            }
             store = [[self alloc] initWithName:storeName user:user];
             if (store)
                 _allSharedStores[userKey][storeName] = store;
@@ -629,7 +635,7 @@ NSString *const EXPLAIN_ROWS = @"rows";
     @throw [NSException exceptionWithName:message reason:[db lastErrorMessage] userInfo:nil];
 }
 
-- (void)inDatabase:(void (^)(FMDatabase *db))block error:(NSError**)error
+- (void)inDatabase:(void (^)(FMDatabase *db))block error:(NSError* __autoreleasing *)error
 {
     [self.storeQueue inDatabase:^(FMDatabase* db) {
         @try {
@@ -643,7 +649,7 @@ NSString *const EXPLAIN_ROWS = @"rows";
     }];
 }
 
-- (void)inTransaction:(void (^)(FMDatabase *db, BOOL *rollback))block error:(NSError**)error {
+- (void)inTransaction:(void (^)(FMDatabase *db, BOOL *rollback))block error:(NSError* __autoreleasing *)error {
     [self.storeQueue inTransaction:^(FMDatabase* db, BOOL *rollback) {
         @try {
             block(db, rollback);
@@ -765,7 +771,8 @@ NSString *const EXPLAIN_ROWS = @"rows";
     SFSmartStoreEncryptionKeyBlock keyBlock = [SFSmartStore encryptionKeyBlock];
     if (keyBlock) {
         SFEncryptStream *encryptStream = [[SFEncryptStream alloc] initToFileAtPath:filePath append:NO];
-        [encryptStream setupWithKey:keyBlock().key andInitializationVector:nil];
+        SFEncryptionKey *encKey = keyBlock();
+        [encryptStream setupWithKey:encKey.key andInitializationVector:encKey.initializationVector];
         outputStream = encryptStream;
     } else {
         outputStream = [[NSOutputStream alloc] initToFileAtPath:filePath append:NO];
@@ -792,13 +799,22 @@ NSString *const EXPLAIN_ROWS = @"rows";
 
 - (id)loadExternalSoupEntry:(NSNumber *)soupEntryId
               soupTableName:(NSString *)soupTableName {
+    SFSmartStoreEncryptionKeyBlock keyBlock = [SFSmartStore encryptionKeyBlock];
+    SFEncryptionKey *encKey = nil;
+    if (keyBlock){
+       encKey = keyBlock();
+    }
+    return [self loadExternalSoupEntry:soupEntryId soupTableName:soupTableName withKey:encKey.key andIV:encKey.initializationVector];
+}
+
+- (id)loadExternalSoupEntry:(NSNumber *)soupEntryId
+              soupTableName:(NSString *)soupTableName withKey:(NSData *)key andIV:(NSData *)initializationVector {
     NSString *filePath = [self externalStorageSoupFilePath:soupEntryId
                                              soupTableName:soupTableName];
     NSInputStream *inputStream = nil;
-    SFSmartStoreEncryptionKeyBlock keyBlock = [SFSmartStore encryptionKeyBlock];
-    if (keyBlock) {
+    if (key) {
         SFDecryptStream *decryptStream = [[SFDecryptStream alloc] initWithFileAtPath:filePath];
-        [decryptStream setupWithKey:keyBlock().key andInitializationVector:nil];
+        [decryptStream setupWithKey:key andInitializationVector:initializationVector];
         inputStream = decryptStream;
     } else {
         inputStream = [[NSInputStream alloc] initWithFileAtPath:filePath];
@@ -810,14 +826,31 @@ NSString *const EXPLAIN_ROWS = @"rows";
                                                     error:&error];
     [inputStream close];
     if (!result && error) {
-        NSString *errorMessage = [NSString stringWithFormat:@"Loading external soup from file failed! encrypted: %@, soupEntryId: %@, soupTableName: %@, filePath: '%@', error: %@.",
-                                  keyBlock ? @"YES" : @"NO",
-                                  soupEntryId,
-                                  soupTableName,
-                                  filePath,
-                                  error];
-        NSAssert(NO, errorMessage);
-        [SFSDKSmartStoreLogger e:[self class] format:errorMessage];
+        
+        // It is possible that file was previously encrypted with nill IV. For Backward
+        // compatability reasons we will attempt to load the file with a nill IV. If itmanages
+        // to load one  it will encryptthe file with anIV and store it back.
+        if (initializationVector) {
+            result = [self loadExternalSoupEntry:soupEntryId soupTableName:soupTableName withKey:key andIV:nil];
+            //lets write it back.
+            BOOL migrated = [self saveSoupEntryExternally:result soupEntryId:soupEntryId soupTableName:soupTableName];
+            if (!migrated) {
+                [SFSDKSmartStoreLogger e:[self class] format:@"Attempt to migrate an encrypted externally saved soup '%@' with a null IV  failed.", soupTableName];
+            }
+            
+        } else {
+           NSString *errorMessage = [NSString stringWithFormat:@"Loading external soup from file failed! encrypted: %@, soupEntryId: %@, soupTableName: %@, filePath: '%@', error: %@.",
+                                      key ? @"YES" : @"NO",
+                                      soupEntryId,
+                                      soupTableName,
+                                      filePath,
+                                      error];
+            [SFSDKSmartStoreLogger e:[self class] format:errorMessage];
+            @throw [NSException exceptionWithName:kSFSmartStoreErrorLoadExternalSoup
+                                           reason:errorMessage
+                                         userInfo:nil];
+            
+        }
     }
     return result;
 }
@@ -1420,7 +1453,7 @@ NSString *const EXPLAIN_ROWS = @"rows";
 - (NSNumber *)lookupSoupEntryIdForSoupName:(NSString *)soupName
                               forFieldPath:(NSString *)fieldPath
                                 fieldValue:(NSString *)fieldValue
-                                     error:(NSError **)error
+                                     error:(NSError * __autoreleasing *)error
 {
     __block NSNumber* result;
     [self inDatabase:^(FMDatabase* db) {
@@ -1593,7 +1626,8 @@ NSString *const EXPLAIN_ROWS = @"rows";
     for (int i = 0; i < frs.columnCount; i++) {
         NSString* columnName = [frs columnNameForIndex:i];
         id value = valuesMap[columnName];
-        if ([columnName hasSuffix:SOUP_COL] && [value isKindOfClass:[NSString class]]) {
+        if ([value isKindOfClass:[NSString class]] &&
+            ([columnName isEqualToString:SOUP_COL] || [columnName hasPrefix:[NSString stringWithFormat:@"%@:", SOUP_COL]])) {
             id entry = [SFJsonUtils objectFromJSONString:value];
             if (entry) {
                 [result addObject:entry];
@@ -1878,9 +1912,10 @@ NSString *const EXPLAIN_ROWS = @"rows";
     return [self upsertEntries:entries toSoup:soupName withExternalIdPath:SOUP_ENTRY_ID error:nil];
 }
 
-- (NSArray*)upsertEntries:(NSArray*)entries toSoup:(NSString*)soupName withExternalIdPath:(NSString *)externalIdPath error:(NSError **)error
+- (NSArray*)upsertEntries:(NSArray*)entries toSoup:(NSString*)soupName withExternalIdPath:(NSString *)externalIdPath error:(NSError * __autoreleasing *)error
 {
     __block NSArray* result;
+   
     [self inTransaction:^(FMDatabase* db, BOOL* rollback) {
         result = [self upsertEntries:entries toSoup:soupName withExternalIdPath:externalIdPath error:error withDb:db];
     } error:error];
@@ -2225,6 +2260,35 @@ NSString *const EXPLAIN_ROWS = @"rows";
             [self executeUpdateThrows:renameSoupNamesTableSql withDb:db];
         }
     } error:nil];
+}
+
+#pragma mark - Misc info methods
+- (NSArray*) getCompileOptions
+{
+    return [self queryPragma:@"compile_options"];
+}
+
+- (NSString*) getSQLCipherVersion
+{
+    return [[self queryPragma:@"cipher_version"] componentsJoinedByString:@""];
+}
+
+- (NSArray*) queryPragma:(NSString*) pragma
+{
+    __block NSMutableArray* result = [NSMutableArray new];
+
+    [self.storeQueue inDatabase:^(FMDatabase *db) {
+
+        FMResultSet *rs = [db executeQuery:[NSString stringWithFormat:@"pragma %@", pragma]];
+
+        while ([rs next]) {
+            [result addObject:[rs stringForColumnIndex:0]];
+        }
+
+        [rs close];
+    }];
+
+    return result;
 }
 
 @end

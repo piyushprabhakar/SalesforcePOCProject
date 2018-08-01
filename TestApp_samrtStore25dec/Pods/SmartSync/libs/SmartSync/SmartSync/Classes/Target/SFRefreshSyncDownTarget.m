@@ -139,17 +139,23 @@ static NSUInteger const kSFSyncTargetRefreshDefaultCountIdsPerSoql = 500;
     }
     
     __block NSMutableArray* remoteIds = [NSMutableArray new];
-    __block NSUInteger sliceSize = self.countIdsPerSoql;
-    __block NSUInteger countSlices = ceil((float)localIds.count / sliceSize);
+    NSUInteger sliceSize = self.countIdsPerSoql;
+    NSUInteger countSlices = ceil((float)localIds.count / sliceSize);
     __block NSUInteger slice = 0;
-    __block NSString* idFieldName = self.idFieldName;
+    NSString* idFieldName = self.idFieldName;
     __block SFSyncDownTargetFetchCompleteBlock fetchBlockRecurse = ^(NSArray *records) {};
+    
+    SFSyncDownTargetFetchErrorBlock fetchErrorBlock = ^(NSError *error) {
+        fetchBlockRecurse = nil;
+        errorBlock(error);
+    };
+    
     SFSyncDownTargetFetchCompleteBlock fetchBlock = ^(NSArray* records) {
         // NB with the recursive block, using weakSelf doesn't work (it goes to nil)
         //    are we leaking memory?
 
         for (NSDictionary * record in records) {
-            [remoteIds addObject:record[self.idFieldName]];
+            [remoteIds addObject:record[idFieldName]];
         }
 
         if (slice < countSlices) {
@@ -158,9 +164,10 @@ static NSUInteger const kSFSyncTargetRefreshDefaultCountIdsPerSoql = 500;
             [self fetchFromServer:idsToFetch
                         fieldlist:@[idFieldName]
                      maxTimeStamp:0 /*all*/
-                       errorBlock:errorBlock
+                       errorBlock:fetchErrorBlock
                     completeBlock:fetchBlockRecurse];
         } else {
+            fetchBlockRecurse = nil;
             completeBlock(remoteIds);
         }
     };
@@ -254,10 +261,11 @@ static NSUInteger const kSFSyncTargetRefreshDefaultCountIdsPerSoql = 500;
     NSString* whereClause = [NSString stringWithFormat:@"%@ IN ('%@')%@", self.idFieldName, [ids componentsJoinedByString:@"','"], andClause];
     NSString* soql = [[[[SFSDKSoqlBuilder withFieldsArray:fieldlist] from:self.objectType] whereClause:whereClause] build];
     SFRestRequest* request = [[SFRestAPI sharedInstance] requestForQuery:soql];
-    [SFSmartSyncNetworkUtils sendRequestWithSmartSyncUserAgent:request failBlock:errorBlock completeBlock:^(NSDictionary *d) {
+    [SFSmartSyncNetworkUtils sendRequestWithSmartSyncUserAgent:request failBlock:^(NSError *e, NSURLResponse *rawResponse) {
+        errorBlock(e);
+    } completeBlock:^(NSDictionary *d, NSURLResponse *rawResponse) {
         completeBlock(d[kResponseRecords]);
     }];
-    
 }
 
 @end

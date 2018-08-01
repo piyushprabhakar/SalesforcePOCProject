@@ -86,7 +86,9 @@ static NSString * const kSFSyncTargetFieldlist = @"fieldlist";
       completeBlock:(SFSyncDownTargetFetchCompleteBlock)completeBlock {
     __weak typeof(self) weakSelf = self;
     SFRestRequest *request = [[SFRestAPI sharedInstance] requestForMetadataWithObjectType:self.objectType];
-    [SFSmartSyncNetworkUtils sendRequestWithSmartSyncUserAgent:request failBlock:errorBlock completeBlock:^(NSDictionary* d) {
+    [SFSmartSyncNetworkUtils sendRequestWithSmartSyncUserAgent:request failBlock:^(NSError *e, NSURLResponse *rawResponse) {
+        errorBlock(e);
+    } completeBlock:^(NSDictionary* d, NSURLResponse *rawResponse) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         NSArray* recentItems = [strongSelf pluck:d[kRecentItems] key:strongSelf.idFieldName];
         NSString* inPredicate = [@[ strongSelf.idFieldName, @" IN ('", [recentItems componentsJoinedByString:@"', '"], @"')"]
@@ -106,7 +108,9 @@ static NSString * const kSFSyncTargetFieldlist = @"fieldlist";
       completeBlock:(SFSyncDownTargetFetchCompleteBlock)completeBlock {
     __weak typeof(self) weakSelf = self;
     SFRestRequest * soqlRequest = [[SFRestAPI sharedInstance] requestForQuery:queryRun];
-    [SFSmartSyncNetworkUtils sendRequestWithSmartSyncUserAgent:soqlRequest failBlock:errorBlock completeBlock:^(NSDictionary * d) {
+    [SFSmartSyncNetworkUtils sendRequestWithSmartSyncUserAgent:soqlRequest failBlock:^(NSError *e, NSURLResponse *rawResponse) {
+        errorBlock(e);
+    } completeBlock:^(NSDictionary * d, NSURLResponse *rawResponse) {
         weakSelf.totalSize = [d[kResponseTotalSize] integerValue];
         completeBlock(d[kResponseRecords]);
     }];
@@ -115,14 +119,15 @@ static NSString * const kSFSyncTargetFieldlist = @"fieldlist";
 - (void) getRemoteIds:(SFSmartSyncSyncManager*)syncManager
              localIds:(NSArray*)localIds
            errorBlock:(SFSyncDownTargetFetchErrorBlock)errorBlock
-        completeBlock:(SFSyncDownTargetFetchCompleteBlock)completeBlock {
+        completeBlock:(nullable SFSyncDownTargetFetchCompleteBlock)completeBlock {
     if (localIds == nil) {
         completeBlock(nil);
         return;
     }
-    NSString* inPredicate = [@[ self.idFieldName, @" IN ('", [localIds componentsJoinedByString:@"', '"], @"')"]
+    NSString* idFieldName = self.idFieldName;
+    NSString* inPredicate = [@[idFieldName, @" IN ('", [localIds componentsJoinedByString:@"', '"], @"')"]
                              componentsJoinedByString:@""];
-    NSString* soql = [[[[SFSDKSoqlBuilder withFields:self.idFieldName]
+    NSString* soql = [[[[SFSDKSoqlBuilder withFields:idFieldName]
                         from:self.objectType]
                        whereClause:inPredicate]
                       build];
@@ -130,7 +135,7 @@ static NSString * const kSFSyncTargetFieldlist = @"fieldlist";
     SFSyncDownTargetFetchCompleteBlock fetchBlock = ^(NSArray* records) {
         NSMutableArray * remoteIds = [NSMutableArray new];
         for (NSDictionary * record in records) {
-            [remoteIds addObject:record[self.idFieldName]];
+            [remoteIds addObject:record[idFieldName]];
         }
         completeBlock(remoteIds);
     };

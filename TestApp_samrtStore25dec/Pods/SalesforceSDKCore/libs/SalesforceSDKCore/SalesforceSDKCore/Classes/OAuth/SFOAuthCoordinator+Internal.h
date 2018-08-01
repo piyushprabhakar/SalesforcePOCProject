@@ -25,7 +25,6 @@
 #import "SFOAuthCoordinator.h"
 
 @class SFOAuthInfo;
-@class SFOAuthOrgAuthConfiguration;
 
 typedef NS_ENUM(NSUInteger, SFOAuthTokenEndpointFlow) {
     SFOAuthTokenEndpointFlowNone = 0,
@@ -42,7 +41,6 @@ typedef NS_ENUM(NSUInteger, SFOAuthTokenEndpointFlow) {
 - (void)beginJwtTokenExchangeFlow;
 - (void)handleTokenEndpointResponse:(NSMutableData *)data;
 - (void)beginNativeBrowserFlow;
-- (void)retrieveOrgAuthConfiguration:(void (^)(SFOAuthOrgAuthConfiguration*, NSError*))retrievedAuthConfigBlock;
 
 @end
 
@@ -59,7 +57,7 @@ typedef NS_ENUM(NSUInteger, SFOAuthTokenEndpointFlow) {
 @property (nonatomic, strong) SFOAuthInfo *authInfo;
 @property (nonatomic, readwrite) SFOAuthAdvancedAuthState advancedAuthState;
 @property (nonatomic, copy) NSString *origWebUserAgent;
-
+@property (nonatomic, strong) SFOAuthCredentials *spAppCredentials;
 /** UpdateCredentials and record changes to instanceUrl,accessToken,communityId
   @param params NV pairs received from token endpoint.
  */

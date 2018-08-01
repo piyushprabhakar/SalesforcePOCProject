@@ -12,6 +12,12 @@
 
 #import "SFAdvancedSyncUpTarget.h"
 #import "SFChildrenInfo.h"
+#import "SFLayout.h"
+#import "SFLayoutSyncDownTarget.h"
+#import "SFLayoutSyncManager.h"
+#import "SFMetadata.h"
+#import "SFMetadataSyncDownTarget.h"
+#import "SFMetadataSyncManager.h"
 #import "SFMruSyncDownTarget.h"
 #import "SFObject.h"
 #import "SFObjectType.h"
@@ -22,6 +28,7 @@
 #import "SFParentInfo.h"
 #import "SFRefreshSyncDownTarget.h"
 #import "SFSDKSmartSyncLogger.h"
+#import "SFSDKSyncsConfig.h"
 #import "SFSmartSyncCacheManager.h"
 #import "SFSmartSyncConstants.h"
 #import "SFSmartSyncMetadataManager.h"
@@ -37,6 +44,7 @@
 #import "SFSyncTarget.h"
 #import "SFSyncUpTarget.h"
 #import "SmartSync.h"
+#import "SmartSyncSDKManager.h"
 
 FOUNDATION_EXPORT double SmartSyncVersionNumber;
 FOUNDATION_EXPORT const unsigned char SmartSyncVersionString[];

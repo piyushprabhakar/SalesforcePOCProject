@@ -25,9 +25,11 @@
 #import <Foundation/Foundation.h>
 #import "SFSyncDownTarget.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 @interface SFSoqlSyncDownTarget : SFSyncDownTarget
 
-@property (nonatomic, strong) NSString* query;
+@property (nonatomic, copy) NSString* query;
 
 /** Factory methods
  */
@@ -45,3 +47,5 @@
 - (NSString*) getQueryToRun:(long long)maxTimeStamp;
 
 @end
+
+NS_ASSUME_NONNULL_END

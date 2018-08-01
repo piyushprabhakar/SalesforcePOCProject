@@ -25,6 +25,7 @@
 #import <Foundation/Foundation.h>
 #import "SFRestRequest.h"
 #import "SFSObjectTree.h"
+#import "SFUserAccount.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -40,7 +41,7 @@ extern NSString* const kSFRestErrorDomain;
 extern NSInteger const kSFRestErrorCode;
 
 /*
- * Default API version (currently "v39.0")
+ * Default API version (currently "v42.0")
  * You can override this by using setApiVersion:
  */
 extern NSString* const kSFRestDefaultAPIVersion;
@@ -89,13 +90,13 @@ extern NSString* const kSFRestIfUnmodifiedSince;
  
     #pragma mark - SFRestDelegate
  
-    - (void)request:(SFRestRequest *)request didLoadResponse:(id)dataResponse {
+    - (void)request:(SFRestRequest *)request didLoadResponse:(id)dataResponse rawResponse:(NSURLResponse *)rawResponse {
         NSDictionary *dict = (NSDictionary *)dataResponse;
         NSArray *fields = (NSArray *)[dict objectForKey:@"fields"];
         // ...
     }
  
-    - (void)request:(SFRestRequest*)request didFailLoadWithError:(NSError*)error {
+    - (void)request:(SFRestRequest*)request didFailLoadWithError:(NSError *)error rawResponse:(NSURLResponse *)rawResponse {
         // handle error
     }
  
@@ -135,17 +136,25 @@ extern NSString* const kSFRestIfUnmodifiedSince;
 @interface SFRestAPI : NSObject
 
 /**
- * The REST API version used for all the calls. This could be "v21.0", "v22.0"...
- * The default value is `kSFRestDefaultAPIVersion` (currently "v39.0")
+ * The REST API version used for all the calls.
+ * The default value is `kSFRestDefaultAPIVersion` (currently "v42.0")
  */
 @property (nonatomic, strong) NSString *apiVersion;
 
 /**
- * Returns the singleton instance of `SFRestAPI`.
- * Dependent on authenticated credentials in SFAccountManager, to properly form up
- * authenticated requests.
+ * The user associated with this instance of SFRestAPI.
+ */
+@property (nonatomic, strong, readonly) SFUserAccount *user;
+
+/**
+ * Returns the singleton instance of `SFRestAPI` associated with the current user.
  */
 + (SFRestAPI *)sharedInstance;
+
+/**
+ * Returns the singleton instance of `SFRestAPI` associated with the specified user.
+ */
++ (nullable SFRestAPI *)sharedInstanceWithUser:(nonnull SFUserAccount *)user;
 
 /**
  * Specifies whether the current execution is a test run or not.
@@ -179,6 +188,12 @@ extern NSString* const kSFRestIfUnmodifiedSince;
 ///---------------------------------------------------------------------------------------
 /// @name SFRestRequest factory methods
 ///---------------------------------------------------------------------------------------
+
+/**
+ * Returns an `SFRestRequest` which gets information aassociated with the current user.
+ * @see https://help.salesforce.com/articleView?id=remoteaccess_using_userinfo_endpoint.htm
+ */
+- (SFRestRequest *)requestForUserInfo;
 
 /**
  * Returns an `SFRestRequest` which lists summary information about each
@@ -218,6 +233,15 @@ extern NSString* const kSFRestIfUnmodifiedSince;
  * @see http://www.salesforce.com/us/developer/docs/api_rest/Content/resources_sobject_describe.htm
  */
 - (SFRestRequest *)requestForDescribeWithObjectType:(NSString *)objectType;
+
+/**
+ * Returns an `SFRestRequest` which provides layout data for the specified object and layout type.
+ *
+ * @param objectType Object type. For example, "Account".
+ * @param layoutType Layout type. Could be "Full" or "Compact". Default is "Full".
+ * @see https://developer.salesforce.com/docs/atlas.en-us.uiapi.meta/uiapi/ui_api_resources_record_layout.htm
+ */
+- (SFRestRequest *)requestForLayoutWithObjectType:(nonnull NSString *)objectType layoutType:(nullable NSString *)layoutType;
 
 /**
  * Returns an `SFRestRequest` which retrieves field values for a record of the given type.

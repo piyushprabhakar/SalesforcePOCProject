@@ -27,7 +27,7 @@
  WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import "SFSDKSalesforceAnalyticsManager.h"
+#import "SFSDKSalesforceAnalyticsManager+Internal.h"
 #import "SFUserAccountManager.h"
 #import "SalesforceSDKManager.h"
 #import "SFDirectoryManager.h"
@@ -41,7 +41,9 @@
 #import <SalesforceAnalytics/SFSDKDeviceAppAttributes.h>
 #import <SalesforceAnalytics/NSUserDefaults+SFAdditions.h>
 #import "SFSDKAppFeatureMarkers.h"
+#import "SFSDKAppConfig.h"
 
+static NSString * const kAnalyticsUnauthenticatedManagerKey = @"-unauthenticated-";
 static NSString * const kEventStoresDirectory = @"event_stores";
 static NSString * const kEventStoreEncryptionKeyLabel = @"com.salesforce.eventStore.encryptionKey";
 static NSString * const kAnalyticsOnOffKey = @"ailtn_enabled";
@@ -49,31 +51,15 @@ static NSString * const kSFAppFeatureAiltnEnabled = @"AI";
 
 static NSMutableDictionary *analyticsManagerList = nil;
 
-@interface SFSDKAnalyticsTransformPublisherPair : NSObject
-
-@property (nonnull, nonatomic, readonly, strong) id<SFSDKTransform> transform;
-@property (nonnull, nonatomic, readonly, strong) id<SFSDKAnalyticsPublisher> publisher;
-
-- (instancetype)initWithTransform:(id<SFSDKTransform>)transform publisher:(id<SFSDKAnalyticsPublisher>)publisher;
-
-@end
-
-@interface SFSDKSalesforceAnalyticsManager () <SFAuthenticationManagerDelegate>
-
-@property (nonatomic, readwrite, strong) SFSDKAnalyticsManager *analyticsManager;
-@property (nonatomic, readwrite, strong) SFSDKEventStoreManager *eventStoreManager;
-@property (nonatomic, readwrite, strong) SFUserAccount *userAccount;
-@property (nonatomic, readwrite, strong) NSMutableArray<SFSDKAnalyticsTransformPublisherPair *> *remotes;
-
-@end
-
 @implementation SFSDKSalesforceAnalyticsManager
 
-+ (instancetype) sharedInstanceWithUser:(SFUserAccount *) userAccount {
-    static dispatch_once_t pred;
-    dispatch_once(&pred, ^{
++ (void)initialize {
+    if (self == [SFSDKSalesforceAnalyticsManager class] && analyticsManagerList == nil) {
         analyticsManagerList = [[NSMutableDictionary alloc] init];
-    });
+    }
+}
+
++ (instancetype) sharedInstanceWithUser:(SFUserAccount *) userAccount {
     @synchronized ([SFSDKSalesforceAnalyticsManager class]) {
         if (!userAccount) {
             userAccount = [SFUserAccountManager sharedInstance].currentUser;
@@ -87,11 +73,25 @@ static NSMutableDictionary *analyticsManagerList = nil;
         }
         id analyticsMgr = analyticsManagerList[key];
         if (!analyticsMgr) {
-            analyticsMgr = [[SFSDKSalesforceAnalyticsManager alloc] initWithUser:userAccount];
+            if (userAccount.loginState != SFUserAccountLoginStateLoggedIn) {
+                [SFSDKCoreLogger w:[self class] format:@"%@ A user account must be in the  SFUserAccountLoginStateLoggedIn state in order to create a SFSDKSalesforceAnalyticsManager instance for a user.", NSStringFromSelector(_cmd)];
+                return nil;
+            }
+            analyticsMgr = [[self alloc] initWithUser:userAccount];
             analyticsManagerList[key] = analyticsMgr;
         }
         return analyticsMgr;
     }
+}
+
++ (instancetype)sharedUnauthenticatedInstance {
+    static dispatch_once_t pred;
+    dispatch_once(&pred, ^{
+        if (analyticsManagerList[kAnalyticsUnauthenticatedManagerKey] == nil) {
+            analyticsManagerList[kAnalyticsUnauthenticatedManagerKey] = [[self alloc] init];
+        }
+    });
+    return analyticsManagerList[kAnalyticsUnauthenticatedManagerKey];
 }
 
 + (void) removeSharedInstanceWithUser:(SFUserAccount *) userAccount {
@@ -108,28 +108,59 @@ static NSMutableDictionary *analyticsManagerList = nil;
 }
 
 - (void) dealloc {
-    [[NSNotificationCenter defaultCenter] removeObserver:self name:UIApplicationDidEnterBackgroundNotification object:nil];
+    // Only work with auth-based notifications for an authenticated context.
+    if (_userAccount != nil) {
+        SFSDK_USE_DEPRECATED_BEGIN
+        [[SFAuthenticationManager sharedManager] removeDelegate:self];
+        SFSDK_USE_DEPRECATED_END
+    }
+    
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (instancetype)init {
+    return [self initWithUser:nil];
 }
 
 - (instancetype) initWithUser:(SFUserAccount *) userAccount {
     self = [super init];
     if (self) {
-        self.userAccount = userAccount;
-        SFSDKDeviceAppAttributes *deviceAttributes = [self buildDeviceAppAttributes];
-        NSString *rootStoreDir = [[SFDirectoryManager sharedManager] directoryForUser:userAccount type:NSDocumentDirectory components:@[ kEventStoresDirectory ]];
-        SFEncryptionKey *encKey = [[SFKeyStoreManager sharedInstance] retrieveKeyWithLabel:kEventStoreEncryptionKeyLabel keyType:SFKeyStoreKeyTypePasscode autoCreate:YES];
+        _userAccount = userAccount;
+        SFSDKDeviceAppAttributes *deviceAttributes = [[self class] getDeviceAppAttributes];
+        
+        NSString *rootStoreDir;
+        if (_userAccount != nil) {
+            rootStoreDir = [[SFDirectoryManager sharedManager] directoryForUser:userAccount type:NSDocumentDirectory components:@[ kEventStoresDirectory ]];
+        } else {
+            rootStoreDir = [[SFDirectoryManager sharedManager] globalDirectoryOfType:NSDocumentDirectory components:@[ kEventStoresDirectory ]];
+        }
+        
+        SFEncryptionKey *encKey = [[SFKeyStoreManager sharedInstance] retrieveKeyWithLabel:kEventStoreEncryptionKeyLabel autoCreate:YES];
         DataEncryptorBlock dataEncryptorBlock = ^NSData*(NSData *data) {
             return [SFSDKCryptoUtils aes256EncryptData:data withKey:encKey.key iv:encKey.initializationVector];
         };
         DataDecryptorBlock dataDecryptorBlock = ^NSData*(NSData *data) {
             return [SFSDKCryptoUtils aes256DecryptData:data withKey:encKey.key iv:encKey.initializationVector];
         };
-        self.analyticsManager = [[SFSDKAnalyticsManager alloc] initWithStoreDirectory:rootStoreDir dataEncryptorBlock:dataEncryptorBlock dataDecryptorBlock:dataDecryptorBlock deviceAttributes:deviceAttributes];
-        self.eventStoreManager = self.analyticsManager.storeManager;
-        self.remotes = [[NSMutableArray alloc] init];
-        SFSDKAnalyticsTransformPublisherPair *tpp = [[SFSDKAnalyticsTransformPublisherPair alloc] initWithTransform:[[SFSDKAILTNTransform alloc] init] publisher:[[SFSDKAILTNPublisher alloc] init]];
-        [self.remotes addObject:tpp];
+        _analyticsManager = [[SFSDKAnalyticsManager alloc] initWithStoreDirectory:rootStoreDir dataEncryptorBlock:dataEncryptorBlock dataDecryptorBlock:dataDecryptorBlock deviceAttributes:deviceAttributes];
+        _eventStoreManager = self.analyticsManager.storeManager;
+        _remotes = [[NSMutableArray alloc] init];
+        
+        // There's no standard for unauthenticated instrumentation publishing, currently.  Consumers
+        // should explicitly specify their own.
+        if (_userAccount != nil) {
+            SFSDKAnalyticsTransformPublisherPair *tpp = [[SFSDKAnalyticsTransformPublisherPair alloc] initWithTransform:[[SFSDKAILTNTransform alloc] init] publisher:[[SFSDKAILTNPublisher alloc] init]];
+            [_remotes addObject:tpp];
+        }
+        
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(publishOnAppBackground) name:UIApplicationDidEnterBackgroundNotification object:nil];
+        // Only work with auth-based notifications for an authenticated context.
+        if (userAccount != nil) {
+            SFSDK_USE_DEPRECATED_BEGIN
+            [[SFAuthenticationManager sharedManager] addDelegate:self];
+            SFSDK_USE_DEPRECATED_END
+            [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleUserWillLogout:)  name:kSFNotificationUserWillLogout object:nil];
+        }
     }
     return self;
 }
@@ -168,7 +199,7 @@ static NSMutableDictionary *analyticsManagerList = nil;
 }
 
 - (void) publishEvents:(NSArray<SFSDKInstrumentationEvent *> *) events {
-    if (!events || events.count == 0) {
+    if (events.count == 0 || self.remotes.count == 0) {
         return;
     }
     @synchronized (self) {
@@ -197,7 +228,7 @@ static NSMutableDictionary *analyticsManagerList = nil;
             }
 
             // If there are no transforms left, we're done here.
-            if (!remoteKeySet || remoteKeySet.count == 0) {
+            if (remoteKeySet.count == 0) {
                 overallCompletionStatus = YES;
             }
             if (!overallCompletionStatus) {
@@ -238,7 +269,7 @@ static NSMutableDictionary *analyticsManagerList = nil;
     [self.remotes addObject:tpp];
 }
 
-- (SFSDKDeviceAppAttributes *) buildDeviceAppAttributes {
++ (SFSDKDeviceAppAttributes *) getDeviceAppAttributes {
     SalesforceSDKManager *sdkManager = [SalesforceSDKManager sharedManager];
     NSString *prodAppVersion = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"];
     NSString *buildNumber = [[NSBundle mainBundle] infoDictionary][(NSString*)kCFBundleVersionKey];
@@ -247,22 +278,11 @@ static NSMutableDictionary *analyticsManagerList = nil;
     UIDevice *curDevice = [UIDevice currentDevice];
     NSString *osVersion = [curDevice systemVersion];
     NSString *osName = [curDevice systemName];
-    NSString *appTypeStr = @"";
-    switch ([sdkManager appType]) {
-        case kSFAppTypeNative:
-            appTypeStr = kSFMobileSDKNativeDesignator;
-            break;
-        case kSFAppTypeHybrid:
-            appTypeStr = kSFMobileSDKHybridDesignator;
-            break;
-        case kSFAppTypeReactNative:
-            appTypeStr = kSFMobileSDKReactNativeDesignator;
-            break;
-    }
+    NSString *appTypeStr = [sdkManager getAppTypeAsString];
     NSString *mobileSdkVersion = SALESFORCE_SDK_VERSION;
     NSString *deviceModel = [curDevice platform];
     NSString *deviceId = [sdkManager deviceId];
-    NSString *clientId = sdkManager.connectedAppId;
+    NSString *clientId = sdkManager.appConfig.remoteAccessConsumerKey;
     return [[SFSDKDeviceAppAttributes alloc] initWithAppVersion:appVersion appName:appName osVersion:osVersion osName:osName nativeAppType:appTypeStr mobileSdkVersion:mobileSdkVersion deviceModel:deviceModel deviceId:deviceId clientId:clientId];
 }
 
@@ -295,7 +315,7 @@ static NSMutableDictionary *analyticsManagerList = nil;
     }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         __block UIBackgroundTaskIdentifier task;
-        task = [[SFApplicationHelper sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
+        task = [[SFApplicationHelper sharedApplication] beginBackgroundTaskWithName:NSStringFromClass([self class]) expirationHandler:^{
             [[SFApplicationHelper sharedApplication] endBackgroundTask:task];
             task = UIBackgroundTaskInvalid;
         }];
@@ -322,15 +342,27 @@ static NSMutableDictionary *analyticsManagerList = nil;
 }
 
 #pragma mark - SFAuthenticationManagerDelegate
+- (void)handleUserWillLogout:(NSNotification *)notification {
+    SFUserAccount *user = notification.userInfo[kSFNotificationUserInfoAccountKey];
+    [self handleLogoutForUser:user];
+}
 
-- (void) authManager:(SFAuthenticationManager *) manager willLogoutUser:(SFUserAccount *) user {
+- (void)handleLogoutForUser:(SFUserAccount *)user {
     [self.analyticsManager reset];
     NSUserDefaults *defs = [NSUserDefaults msdkUserDefaults];
     [defs removeObjectForKey:kAnalyticsOnOffKey];
     [[self class] removeSharedInstanceWithUser:user];
 }
 
+SFSDK_USE_DEPRECATED_BEGIN
+
+- (void) authManager:(SFAuthenticationManager *) manager willLogoutUser:(SFUserAccount *) user {
+    [self handleLogoutForUser:user];
+}
+
 @end
+
+SFSDK_USE_DEPRECATED_END
 
 @implementation SFSDKAnalyticsTransformPublisherPair
 
@@ -344,3 +376,4 @@ static NSMutableDictionary *analyticsManagerList = nil;
 }
 
 @end
+

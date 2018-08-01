@@ -1,4 +1,5 @@
-[![Build Status](https://forcedotcom.github.io/SalesforceMobileSDK-TestResults/iOS-test-results/dev/latest/buildstatus.svg)](https://forcedotcom.github.io/SalesforceMobileSDK-TestResults/iOS-test-results/dev/latest/index.html)
+[![CircleCI](https://circleci.com/gh/forcedotcom/SalesforceMobileSDK-iOS/tree/dev.svg?style=svg)](https://circleci.com/gh/forcedotcom/SalesforceMobileSDK-iOS/tree/dev)
+[![codecov](https://codecov.io/gh/forcedotcom/SalesforceMobileSDK-iOS/branch/dev/graph/badge.svg)](https://codecov.io/gh/forcedotcom/SalesforceMobileSDK-iOS/branch/dev)
 
 # Salesforce.com Mobile SDK for iOS
 
@@ -27,32 +28,39 @@ This script pulls the submodule dependencies from GitHub, to finalize setup of t
 
 See [build.md](build.md) for information on generating binary distributions and app templates.
 
-The Salesforce Mobile SDK for iOS requires iOS 9.0 or greater.  The install.sh script checks for this, and aborts if the configured SDK version is incorrect.  Building from the command line has been tested using ant 1.8.  Older versions might work, but we recommend using the latest version of ant.
+The Salesforce Mobile SDK for iOS requires iOS 10.0 or greater.  The install.sh script checks for this, and aborts if the configured SDK version is incorrect.  Building from the command line has been tested using ant 1.8.  Older versions might work, but we recommend using the latest version of ant.
 
 If you have problems building any of the projects, take a look at the online [FAQ](https://github.com/forcedotcom/SalesforceMobileSDK-iOS/wiki/FAQ) for troubleshooting tips.
 
 Introduction
 ==
 
-### What's New in 5.3.1
-
-- This patch release contains a fix for a recently discovered bug affecting apps consuming Mobile SDK 5.3.0 through cocoapods. These apps were unable to open a SmartStore created with Mobile SDK 5.2.0 or earlier.
-
-### What's New in 5.3
-
-**OS Version Support**
-- iOS 11.0 is fully supported in Mobile SDK 5.3.
+### What's New in 6.2
 
 **Library Upgrades**
-- We've updated SQLCipher to version 3.4.1.
+- We've updated React Native to version 0.55.4.
+
+**Tool Version Upgrades**
+- We now require Cordova CLI 8.0.0.
+
+**SmartSync Data Framework Enhancements**
+- The SmartSync Data Framework now saves the error returned when records fail to sync up.
+- A new utility, `SFMetadataSyncManager`, harnesses the power of SmartSync Data Framework to query Salesforce object metadata.
+- Another new utility, `SFLayoutSyncManager`, harnesses the power of SmartSync Data Framework to query Salesforce object layouts.
 
 **Other Technical Improvements**
+- A Swift version of our `RestAPIExplorer` native sample app is now available.
+- A Swift version of our native sample app, `SmartSyncExplorer`, is now available as a template in our templates repository.
+- We’ve given the Switch User screen a face lift.
+- We've consolidated our templates under a [single repository](https://github.com/forcedotcom/SalesforceMobileSDK-Templates).
 - Improvements to sample apps.
 - Various bug fixes.
 
 **Deprecations**
-- CSFNetwork, CSFAction and all related network classes are now deprecated and will be removed in Mobile SDK 6.0. Instead, use SFRestAPI and SFNetwork.
-- SFLogger is now deprecated and will be removed in Mobile SDK 6.0. Instead, use SFSDKLogger.
+- `SFSmartSyncMetadataManager` is now deprecated and will be removed in Mobile SDK 7.0. Instead, use `SFMetadataSyncManager` and `SFLayoutSyncManager`.
+- `SFSmartSyncCacheManager` is now deprecated and will be removed in Mobile SDK 7.0. Offline caching is now automatically handled by the SmartSync Data Framework.
+- `SFObjectType` is now deprecated and will be removed in Mobile SDK 7.0. Instead, use `SFMetadata`.
+- `SFObjectTypeLayout` is now deprecated and will be removed in Mobile SDK 7.0. Instead, use `SFLayout`.
 
 Check http://developer.force.com/mobilesdk for additional articles and tutorials.
 
@@ -80,6 +88,7 @@ Documentation
 * [SmartSync Library Reference](http://forcedotcom.github.io/SalesforceMobileSDK-iOS/Documentation/SmartSync/html/index.html)
 * [SalesforceHybridSDK Library Reference](http://forcedotcom.github.io/SalesforceMobileSDK-iOS/Documentation/SalesforceHybridSDK/html/index.html)
 * [SalesforceReact Library Reference](http://forcedotcom.github.io/SalesforceMobileSDK-iOS/Documentation/SalesforceReact/html/index.html)
+* [SalesforceSwiftSDK Library Reference](http://forcedotcom.github.io/SalesforceMobileSDK-iOS/Documentation/SalesforceSwiftSDK/index.html)
 * Salesforce Mobile SDK Development Guide -- [PDF](https://github.com/forcedotcom/SalesforceMobileSDK-Shared/blob/master/doc/mobile_sdk.pdf) | [HTML](https://developer.salesforce.com/docs/atlas.en-us.mobile_sdk.meta/mobile_sdk/preface_intro.htm)
 * [Mobile SDK Trail](https://trailhead.salesforce.com/trails/mobile_sdk_intro)
 

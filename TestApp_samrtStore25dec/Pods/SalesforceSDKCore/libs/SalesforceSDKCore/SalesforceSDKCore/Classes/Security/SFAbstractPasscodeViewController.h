@@ -24,9 +24,11 @@
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-
+#import "SFSDKViewController.h"
 #import "SFSecurityLockout.h"
 #import "SFPasscodeViewControllerTypes.h"
+
+NS_ASSUME_NONNULL_BEGIN
 
 /**
  * Key associated with the storage and retrieval of remaining passcode validation attempts.
@@ -41,7 +43,7 @@ extern const NSUInteger kMaxNumberofAttempts;
 /**
  * Base class for passcode screen view controllers.
  */
-@interface SFAbstractPasscodeViewController : UIViewController
+@interface SFAbstractPasscodeViewController : SFSDKViewController
 
 /**
  * The configuration data used to create or update the passcode.
@@ -112,3 +114,5 @@ extern const NSUInteger kMaxNumberofAttempts;
 - (void) showTouchId;
 
 @end
+
+NS_ASSUME_NONNULL_END

@@ -25,10 +25,12 @@
 #import <Foundation/Foundation.h>
 #import "SFSyncTarget.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 @class SFSmartSyncSyncManager;
 
-typedef void (^SFSyncDownTargetFetchCompleteBlock) (NSArray* records);
-typedef void (^SFSyncDownTargetFetchErrorBlock) (NSError *e);
+typedef void (^SFSyncDownTargetFetchCompleteBlock) (NSArray* _Nullable records);
+typedef void (^SFSyncDownTargetFetchErrorBlock) (NSError * _Nullable e);
 
 typedef NS_ENUM(NSInteger, SFSyncDownTargetQueryType) {
   SFSyncDownTargetQueryTypeMru,
@@ -36,12 +38,14 @@ typedef NS_ENUM(NSInteger, SFSyncDownTargetQueryType) {
   SFSyncDownTargetQueryTypeSoql,
   SFSyncDownTargetQueryTypeRefresh,
   SFSyncDownTargetQueryTypeParentChildren,
-  SFSyncDownTargetQueryTypeCustom
+  SFSyncDownTargetQueryTypeCustom,
+  SFSyncDownTargetQueryTypeMetadata,
+  SFSyncDownTargetQueryTypeLayout
 };
 
 @interface SFSyncDownTarget : SFSyncTarget
 
-@property (nonatomic) SFSyncDownTargetQueryType queryType;
+@property (nonatomic,assign) SFSyncDownTargetQueryType queryType;
 
 // Set during a fetch
 @property (nonatomic) NSUInteger totalSize;
@@ -49,7 +53,7 @@ typedef NS_ENUM(NSInteger, SFSyncDownTargetQueryType) {
 /**
  * Methods to translate to/from dictionary
  */
-+ (SFSyncDownTarget*) newFromDict:(NSDictionary *)dict;
++ (nullable SFSyncDownTarget*) newFromDict:(NSDictionary *)dict;
 
 /**
  * Start fetching records conforming to target
@@ -64,7 +68,7 @@ typedef NS_ENUM(NSInteger, SFSyncDownTargetQueryType) {
  */
 - (void) continueFetch:(SFSmartSyncSyncManager*)syncManager
             errorBlock:(SFSyncDownTargetFetchErrorBlock)errorBlock
-         completeBlock:(SFSyncDownTargetFetchCompleteBlock)completeBlock;
+         completeBlock:(nullable SFSyncDownTargetFetchCompleteBlock)completeBlock;
 
 /**
  * Gets the latest modification timestamp from the array of records. Note: inheriting classes can
@@ -79,11 +83,18 @@ typedef NS_ENUM(NSInteger, SFSyncDownTargetQueryType) {
 
 /**
  * Delete from local store records that a full sync down would no longer download
- */
+  *
+  * @param syncManager The sync manager
+  * @param soupName The soup to clean
+  * @param syncId The sync id
+  * @param errorBlock Block to execute in case of error
+  * @param completeBlock Block to execute upon completion
+  */
 - (void)cleanGhosts:(SFSmartSyncSyncManager *)syncManager
-                 soupName:(NSString *)soupName
-               errorBlock:(SFSyncDownTargetFetchErrorBlock)errorBlock
-            completeBlock:(SFSyncDownTargetFetchCompleteBlock)completeBlock;
+           soupName:(NSString *)soupName
+             syncId:(NSNumber *)syncId
+         errorBlock:(SFSyncDownTargetFetchErrorBlock)errorBlock
+      completeBlock:(SFSyncDownTargetFetchCompleteBlock)completeBlock;
 
 /**
  * Get ids of records that should not be written over
@@ -101,3 +112,5 @@ typedef NS_ENUM(NSInteger, SFSyncDownTargetQueryType) {
 + (NSString*) queryTypeToString:(SFSyncDownTargetQueryType)queryType;
 
 @end
+
+NS_ASSUME_NONNULL_END

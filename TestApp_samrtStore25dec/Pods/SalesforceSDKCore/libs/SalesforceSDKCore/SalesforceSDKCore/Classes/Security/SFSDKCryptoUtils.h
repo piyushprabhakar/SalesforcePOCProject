@@ -24,6 +24,8 @@
 
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 @class SFPBKDFData;
 
 /**
@@ -72,10 +74,28 @@ extern NSUInteger const kSFPBKDFDefaultSaltByteLength;
  * @param derivedKeyLength The desired derived key length.
  * @return An SFPBKDFData object representing the derived key.
  */
-+ (SFPBKDFData *)createPBKDF2DerivedKey:(NSString *)stringToHash
++ (nullable SFPBKDFData *)createPBKDF2DerivedKey:(NSString *)stringToHash
                                    salt:(NSData *)salt
                        derivationRounds:(NSUInteger)numDerivationRounds
                               keyLength:(NSUInteger)derivedKeyLength;
+
+/**
+ * Encrypt the given data using the AES-128 algorithm.
+ * @param data The data to encrypt.
+ * @param key The encryption key used to encrypt the data.
+ * @param iv The initialization vector data used for the encryption.
+ * @return The encrypted data, or `nil` if encryption was not successful.
+ */
++ (nullable NSData *)aes128EncryptData:(NSData *)data withKey:(NSData *)key iv:(NSData *)iv;
+
+/**
+ * Decrypt the given data using the AES-128 algorithm.
+ * @param data The data to decrypt.
+ * @param key The decryption key used to decrypt the data.
+ * @param iv The initialization vector data used for the decryption.
+ * @return The decrypted data, or `nil` if decryption was not successful.
+ */
++ (nullable NSData *)aes128DecryptData:(NSData *)data withKey:(NSData *)key iv:(NSData *)iv;
 
 /**
  * Encrypt the given data using the AES-256 algorithm.
@@ -84,7 +104,7 @@ extern NSUInteger const kSFPBKDFDefaultSaltByteLength;
  * @param iv The initialization vector data used for the encryption.
  * @return The encrypted data, or `nil` if encryption was not successful.
  */
-+ (NSData *)aes256EncryptData:(NSData *)data withKey:(NSData *)key iv:(NSData *)iv;
++ (nullable NSData *)aes256EncryptData:(NSData *)data withKey:(NSData *)key iv:(NSData *)iv;
 
 /**
  * Decrypt the given data using the AES-256 algorithm.
@@ -93,6 +113,63 @@ extern NSUInteger const kSFPBKDFDefaultSaltByteLength;
  * @param iv The initialization vector data used for the decryption.
  * @return The decrypted data, or `nil` if decryption was not successful.
  */
-+ (NSData *)aes256DecryptData:(NSData *)data withKey:(NSData *)key iv:(NSData *)iv;
++ (nullable NSData *)aes256DecryptData:(NSData *)data withKey:(NSData *)key iv:(NSData *)iv;
+
+/**
+ * Create asymmetric keys (public/private key pairs) using RSA algorithm with given keyName and length
+ * @param keyName The name string used to generate the key.
+ * @param length The key length used for key
+ */
++ (void)createRSAKeyPairWithName:(NSString *)keyName keyLength:(NSUInteger)length accessibleAttribute:(CFTypeRef)accessibleAttribute;
+
+/**
+ * Get RSA public key as NSString with given keyName and length
+ * @param keyName The name string used to generate the key.
+ * @param length The key length used for key
+ * @return The key string, or `nil` if no matching key is found
+ */
++ (nullable NSString *)getRSAPublicKeyStringWithName:(NSString *)keyName keyLength:(NSUInteger)length;
+
+/**
+ * Get RSA private key as NSData with given keyName and length
+ * @param keyName The name string used to generate the key.
+ * @param length The key length used for key
+ * @return The key data, or `nil` if no matching key is found
+ */
++ (nullable NSData *)getRSAPrivateKeyDataWithName:(NSString *)keyName keyLength:(NSUInteger)length;
+
+/**
+ * Get RSA public SecKeyRef with given keyName and length
+ * @param keyName The name string used to generate the key.
+ * @param length The key length used for key
+ * @return The SecKeyRef, or `nil` if no matching key is found
+ */
++ (nullable SecKeyRef)getRSAPublicKeyRefWithName:(NSString *)keyName keyLength:(NSUInteger)length;
+
+/**
+ * Get RSA private SecKeyRef with given keyName and length
+ * @param keyName The name string used to generate the key.
+ * @param length The key length used for key
+ * @return The SecKeyRef, or `nil` if no matching key is found
+ */
++ (nullable SecKeyRef)getRSAPrivateKeyRefWithName:(NSString *)keyName keyLength:(NSUInteger)length;
+
+/**
+ * Encrypt data with givien SecKeyRef using RSA pkcs1 algorithm
+ * @param data The data to encrypt
+ * @param keyRef The keyref used in encryption
+ * @return The encrypted Dataa, or `nil` if encryption failed
+ */
++ (nullable NSData*)encryptUsingRSAforData:(NSData *)data withKeyRef:(SecKeyRef)keyRef;
+
+/**
+ * Decrypt data with givien SecKeyRef using RSA pkcs1 algorithm
+ * @param data The data to decypt
+ * @param keyRef The keyref used in decryption
+ * @return The decypted Data, or `nil` if decryption failed
+ */
++ (nullable NSData*)decryptUsingRSAforData:(NSData * )data withKeyRef:(SecKeyRef)keyRef;
 
 @end
+
+NS_ASSUME_NONNULL_END

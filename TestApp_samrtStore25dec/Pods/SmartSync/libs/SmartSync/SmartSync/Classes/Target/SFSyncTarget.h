@@ -22,6 +22,8 @@
  WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+NS_ASSUME_NONNULL_BEGIN
+
 @class SFSmartSyncSyncManager;
 
 @interface SFSyncTarget : NSObject
@@ -30,6 +32,8 @@ extern NSString * const kSyncTargetLocal;
 extern NSString * const kSyncTargetLocallyCreated;
 extern NSString * const kSyncTargetLocallyUpdated;
 extern NSString * const kSyncTargetLocallyDeleted;
+extern NSString * const kSyncTargetSyncId;
+extern NSString * const kSyncTargetLastError;
 
 /**
  The field name of the ID field of the record.  Defaults to "Id".
@@ -64,12 +68,13 @@ extern NSString * const kSyncTargetLocallyDeleted;
 - (void) cleanAndSaveInLocalStore:(SFSmartSyncSyncManager*)syncManager soupName:(NSString*)soupName record:(NSDictionary*)record;
 
 /**
- * Save records in local store
+ * Save records in local store (marked as clean)
  * @param syncManager The sync manager
  * @param soupName The soup
  * @param records The records to save
+ * @param syncId The sync id
  */
-- (void) saveRecordsToLocalStore:(SFSmartSyncSyncManager*)syncManager soupName:(NSString*)soupName records:(NSArray*)records;
+- (void)cleanAndSaveRecordsToLocalStore:(SFSmartSyncSyncManager *)syncManager soupName:(NSString *)soupName records:(NSArray *)records syncId:(NSNumber *)syncId;
 
 /**
  * @param record The record
@@ -121,3 +126,5 @@ extern NSString * const kSyncTargetLocallyDeleted;
 - (void) deleteFromLocalStore:(SFSmartSyncSyncManager *)syncManager soupName:(NSString*)soupName record:(NSDictionary*)record;
 
 @end
+
+NS_ASSUME_NONNULL_END

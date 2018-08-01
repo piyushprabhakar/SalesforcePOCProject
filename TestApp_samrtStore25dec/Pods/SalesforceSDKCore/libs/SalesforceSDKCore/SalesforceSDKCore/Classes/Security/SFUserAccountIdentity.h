@@ -24,6 +24,8 @@
 
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 @class SFOAuthCredentials;
 
 /**
@@ -34,12 +36,12 @@
 /**
  The user ID associated with the account.
  */
-@property (nonatomic, copy) NSString *userId;
+@property (nonatomic, copy, nonnull) NSString *userId;
 
 /**
  The organization ID associated with the account.
  */
-@property (nonatomic, copy) NSString *orgId;
+@property (nonatomic, copy, nonnull) NSString *orgId;
 
 /**
  Convenience method to return a new account identity with the given User ID and Org ID.
@@ -47,14 +49,14 @@
  @param orgId The org ID associated with the identity.
  @return An account identity representing the given User ID and Org ID.
  */
-+ (SFUserAccountIdentity *)identityWithUserId:(NSString *)userId orgId:(NSString *)orgId;
++ (nonnull SFUserAccountIdentity *)identityWithUserId:(nonnull NSString *)userId orgId:(nonnull NSString *)orgId;
 
 /**
  Creates a new account identity object with the given user ID and org ID.
  @param userId The user ID associated with the identity.
  @param orgId The org ID associated with the identity.
  */
-- (id)initWithUserId:(NSString *)userId orgId:(NSString *)orgId;
+- (nonnull id)initWithUserId:(nonnull NSString *)userId orgId:(nonnull NSString *)orgId;
 
 /**
  Compares this identity with another.  Useful for [NSArray sortedArrayUsingSelector:].
@@ -72,3 +74,5 @@
 - (BOOL)matchesCredentials:(SFOAuthCredentials *)credentials;
 
 @end
+
+NS_ASSUME_NONNULL_END

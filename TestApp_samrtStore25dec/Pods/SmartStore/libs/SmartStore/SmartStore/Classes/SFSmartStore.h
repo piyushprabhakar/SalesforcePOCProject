@@ -23,6 +23,9 @@
  */
 
 #import <Foundation/Foundation.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
 @class SFEncryptionKey;
 
 /**
@@ -37,6 +40,11 @@ extern NSString *const kDefaultSmartStoreName;
 extern NSString * const kSFSmartStoreErrorDomain;
 
 /**
+ The NSError exceptionName for errors loading external Soups.
+ */
+extern NSString * const kSFSmartStoreErrorLoadExternalSoup;
+
+/**
  The label used to interact with the encryption key.
  */
 extern NSString * const kSFSmartStoreEncryptionKeyLabel;
@@ -44,7 +52,7 @@ extern NSString * const kSFSmartStoreEncryptionKeyLabel;
 /**
  Block typedef for generating an encryption key.
  */
-typedef SFEncryptionKey* (^SFSmartStoreEncryptionKeyBlock)(void);
+typedef SFEncryptionKey*  _Nullable (^SFSmartStoreEncryptionKeyBlock)(void);
 
 /**
  The columns of a soup table
@@ -127,12 +135,12 @@ extern NSString *const EXPLAIN_ROWS;
 /**
  The full path to the store database.
  */
-@property (nonatomic, readonly, strong) NSString *storePath;
+@property (nonatomic, readonly, strong, nullable) NSString *storePath;
 
 /**
  User for this store - nil for global stores
  */
-@property (nonatomic, strong) SFUserAccount *user;
+@property (nonatomic, strong, nullable) SFUserAccount *user;
 
 /**
  Flag to cause explain plan to be captured for every query
@@ -150,14 +158,14 @@ extern NSString *const EXPLAIN_ROWS;
  @param storeName The name of the store.  If in doubt, use kDefaultSmartStoreName.
  @return A shared instance of a store with the given name.
  */
-+ (id)sharedStoreWithName:(NSString*)storeName;
++ (nullable id)sharedStoreWithName:(NSString*)storeName;
 
 /**
  Use this method to obtain a shared store instance with the given name for the given user.
  @param storeName The name of the store.  If in doubt, use kDefaultSmartStoreName.
  @param user The user associated with the store.
  */
-+ (id)sharedStoreWithName:(NSString*)storeName user:(SFUserAccount *)user;
++ (nullable id)sharedStoreWithName:(NSString*)storeName user:(SFUserAccount *)user;
 
 /**
  Use this method to obtain a shared global store instance with the given name.  This store will
@@ -460,6 +468,18 @@ extern NSString *const EXPLAIN_ROWS;
  */
 - (BOOL) reIndexSoup:(NSString*)soupName withIndexPaths:(NSArray*)indexPaths;
 
+/**
+ * Return compile options
+ * @return An array with all the compile options used to build SQL Cipher.
+ */
+- (NSArray *)getCompileOptions;
+
+/**
+ * Return sqlcipher version
+ * @return The version of SQL Cipher in use.
+ */
+- (NSString *)getSQLCipherVersion;
+
 #pragma mark - Long operations recovery methods
 
 /**
@@ -494,3 +514,5 @@ extern NSString *const EXPLAIN_ROWS;
 + (NSDate *)dateFromLastModifiedValue:(NSNumber *)lastModifiedValue;
 
 @end
+
+NS_ASSUME_NONNULL_END

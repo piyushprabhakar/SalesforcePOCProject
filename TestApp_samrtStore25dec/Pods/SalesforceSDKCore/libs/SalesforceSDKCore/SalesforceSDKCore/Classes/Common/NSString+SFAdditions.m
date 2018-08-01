@@ -42,7 +42,7 @@ static inline BOOL IsValidEntityId(NSString *string) {
 
 @implementation NSString (SFAdditions)
 
-+ (BOOL)isEmpty:(NSString *)string {
++ (BOOL)isEmpty:(nullable NSString *)string {
     if (nil == string){
         return YES;
     }
@@ -179,7 +179,7 @@ static inline BOOL IsValidEntityId(NSString *string) {
     ![self stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length;
 }
 
-- (NSString*)entityId18 {
+- (nullable NSString*)entityId18 {
     
     // Look up table of characters which correspond to the bitmap value of uppercase characters for a
     // 5 character chunk of the entity ID (the 15 character entity ID is divided into 3 x 5 char chunks).
@@ -213,10 +213,12 @@ static inline BOOL IsValidEntityId(NSString *string) {
 }
 
 - (BOOL)isEqualToEntityId:(NSString*)entityId {
-    if ([self caseInsensitiveCompare:entityId] == NSOrderedSame) return YES; // for entityId like `me`
-    
-    if (![entityId length]) return NO;
-    if (!IsValidEntityId(self) || !IsValidEntityId(entityId)) return NO;
+    if (!IsValidEntityId(self) || !IsValidEntityId(entityId)) {
+        if ([self caseInsensitiveCompare:entityId] == NSOrderedSame)
+            return YES; // for entityId like `me`
+        else
+            return NO;
+    }
     
     NSString *id18self = ([self length] == SFEntityIdLength18) ? self : [self entityId18];
     NSString *id18other = ([entityId length] == SFEntityIdLength18) ? entityId : [entityId entityId18];

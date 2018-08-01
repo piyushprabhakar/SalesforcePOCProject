@@ -8,10 +8,10 @@ def pod_import
     
     use_frameworks!
 
-    pod 'SalesforceAnalytics','=5.3.1’
-    pod 'SmartStore','=5.3.1’
-    pod 'SmartSync','=5.3.1’
-    pod 'SalesforceSDKCore','=5.3.1’
+    pod 'SalesforceAnalytics','=6.2.0’
+    pod 'SmartStore','=6.2.0’
+    pod 'SmartSync','=6.2.0’
+    pod 'SalesforceSDKCore','=6.2.0’
     pod 'FMDB', :git => 'https://github.com/forcedotcom/fmdb', :branch => '2.7.2_xcode9'
 
 end

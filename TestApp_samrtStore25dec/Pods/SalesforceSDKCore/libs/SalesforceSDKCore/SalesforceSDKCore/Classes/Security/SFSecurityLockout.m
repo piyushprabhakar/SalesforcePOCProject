@@ -31,7 +31,7 @@
 #import "SFUserAccountManager.h"
 #import "SFPasscodeManager.h"
 #import "SFAuthenticationManager.h"
-#import "SFRootViewManager.h"
+#import "SFSDKWindowManager.h"
 #import "SFPreferences.h"
 #import "SFUserActivityMonitor.h"
 #import "SFIdentityData.h"
@@ -39,6 +39,7 @@
 #import "SFApplication.h"
 #import "SFSDKEventBuilderHelper.h"
 #import "SalesforceSDKManager+Internal.h"
+#import "SFSDKNavigationController.h"
 #import <SalesforceAnalytics/NSUserDefaults+SFAdditions.h>
 
 // Private constants
@@ -101,17 +102,21 @@ static BOOL _showPasscode = YES;
             } else {
                 pvc = [[SFPasscodeViewController alloc] initForPasscodeVerification];
             }
-            UINavigationController *nc = [[UINavigationController alloc] initWithRootViewController:pvc];
+            SFSDKNavigationController *nc = [[SFSDKNavigationController alloc] initWithRootViewController:pvc];
             return nc;
         }];
         
         [SFSecurityLockout setPresentPasscodeViewControllerBlock:^(UIViewController *pvc) {
-            [[SalesforceSDKManager sharedManager] dismissSnapshot];
-            [[SFRootViewManager sharedManager] pushViewController:pvc];
+            [[SFSDKWindowManager sharedManager].passcodeWindow presentWindowAnimated:NO withCompletion:^{
+                [[SFSDKWindowManager sharedManager].passcodeWindow.viewController  presentViewController:pvc animated:NO completion:nil];
+            }];
+
         }];
         
         [SFSecurityLockout setDismissPasscodeViewControllerBlock:^(UIViewController *pvc) {
-            [[SFRootViewManager sharedManager] popViewController:pvc];
+            [[[SFSDKWindowManager sharedManager].passcodeWindow.viewController presentedViewController] dismissViewControllerAnimated:NO completion:^{
+                [[SFSDKWindowManager sharedManager].passcodeWindow dismissWindow];
+            }];
         }];
     }
 }
@@ -264,14 +269,18 @@ static BOOL _showPasscode = YES;
 + (BOOL)nonCurrentUsersHavePasscodePolicy
 {
     SFUserAccount *currentAccount = [SFUserAccountManager sharedInstance].currentUser;
+    return [self otherUsersHavePasscodePolicy:currentAccount];
+}
+
++ (BOOL)otherUsersHavePasscodePolicy:(SFUserAccount *)thisUser
+{
     for (SFUserAccount *account in [SFUserAccountManager sharedInstance].allUserAccounts) {
-        if (![account isEqual:currentAccount]) {
+        if (![account isEqual:thisUser]) {
             if (account.idData.mobileAppScreenLockTimeout > 0) {
                 return YES;
             }
         }
     }
-    
     return NO;
 }
 
@@ -281,8 +290,12 @@ static BOOL _showPasscode = YES;
     // on passcode policies across users.  So for instance, if another configured user in the app still has
     // passcode policies which apply to that account, this method will effectively do nothing.  On the other hand,
     // if the current user is the only user of the app, this will remove passcode policies for the app.
-    
-    if (![SFSecurityLockout nonCurrentUsersHavePasscodePolicy]) {
+    return [self clearPasscodeState:[SFUserAccountManager sharedInstance].currentUser];
+}
+
++ (void)clearPasscodeState:(SFUserAccount *)userLoggingOut {
+   
+    if (![SFSecurityLockout otherUsersHavePasscodePolicy:userLoggingOut]) {
         [SFSecurityLockout clearAllPasscodeState];
     }
 }
@@ -316,7 +329,7 @@ static BOOL _showPasscode = YES;
 
 + (BOOL)hasValidSession
 {
-    return [[SFAuthenticationManager sharedManager] haveValidSession];
+    return [SFUserAccountManager sharedInstance].currentUser != nil && [SFUserAccountManager sharedInstance].currentUser.isSessionValid;
 }
 
 // For unit tests.
@@ -394,7 +407,13 @@ static NSString *const kSecurityLockoutSessionId = @"securityLockoutSession";
     } else {
         // Clear the SFSecurityLockout passcode state, as it's no longer valid.
         [SFSecurityLockout clearAllPasscodeState];
-        [[SFAuthenticationManager sharedManager] logoutAllUsers];
+        if ([SFUserAccountManager sharedInstance].useLegacyAuthenticationManager) {
+            SFSDK_USE_DEPRECATED_BEGIN
+            [[SFAuthenticationManager sharedManager] logoutAllUsers];
+            SFSDK_USE_DEPRECATED_END
+        }else {
+            [[SFUserAccountManager sharedInstance] logoutAllUsers];
+        }
         [SFSecurityLockout unlockFailurePostProcessing];
     }
     
@@ -408,7 +427,13 @@ static NSString *const kSecurityLockoutSessionId = @"securityLockoutSession";
 + (void)timerExpired:(NSTimer*)theTimer
 {
     [SFSecurityLockout setLockScreenFailureCallbackBlock:^{
-        [[SFAuthenticationManager sharedManager] logout];
+        if ([SFUserAccountManager sharedInstance].useLegacyAuthenticationManager) {
+            SFSDK_USE_DEPRECATED_BEGIN
+            [[SFAuthenticationManager sharedManager] logout];
+            SFSDK_USE_DEPRECATED_END
+        }else {
+             [[SFUserAccountManager sharedInstance] logout];
+        }
     }];
     
     [SFSDKCoreLogger i:[self class] format:@"NSTimer expired, but checking lastUserEvent before locking!"];
@@ -453,7 +478,9 @@ static NSString *const kSecurityLockoutSessionId = @"securityLockoutSession";
     SFPasscodeConfigurationData configData;
     configData.lockoutTime = [self lockoutTime];
     configData.passcodeLength = [self passcodeLength];
-    [SFSecurityLockout presentPasscodeController:SFPasscodeControllerModeVerify passcodeConfig:configData];
+    if ([SFApplicationHelper sharedApplication].applicationState == UIApplicationStateActive || ![SFSDKWindowManager sharedManager].snapshotWindow.isEnabled) {
+        [SFSecurityLockout presentPasscodeController:SFPasscodeControllerModeVerify passcodeConfig:configData];
+    }
     [SFSDKCoreLogger i:[self class] format:@"Device locked."];
     sForcePasscodeDisplay = NO;
 }
@@ -503,6 +530,9 @@ static NSString *const kSecurityLockoutSessionId = @"securityLockoutSession";
         return;
     }
     
+    if ([[SFSDKWindowManager sharedManager].snapshotWindow isEnabled]) {
+        [[SFSDKWindowManager sharedManager].snapshotWindow dismissWindow];
+    }
     // Don't present the passcode screen if it's already present.
     if ([SFSecurityLockout passcodeScreenIsPresent]) {
         return;
@@ -644,7 +674,7 @@ static NSString *const kSecurityLockoutSessionId = @"securityLockoutSession";
 
 + (BOOL)passcodeScreenIsPresent
 {
-    if ([SFSecurityLockout passcodeViewController] != nil) {
+    if ([SFSecurityLockout passcodeViewController] != nil && [[SFSecurityLockout  passcodeViewController] presentedViewController]!= nil) {
         [SFSDKCoreLogger i:[self class] format:kPasscodeScreenAlreadyPresentMessage];
         return YES;
     } else {
@@ -736,3 +766,4 @@ static NSString *const kSecurityLockoutSessionId = @"securityLockoutSession";
 }
 
 @end
+
